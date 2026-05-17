@@ -1,0 +1,42 @@
+local.file_match "snort3_log" {
+  path_targets = [{
+    __address__ = "localhost",
+    __path__    = "/var/log/snort/alert_json.txt", 
+    job         = "snort",
+    instance    = "ids-node-01",
+  }]
+}
+
+loki.source.file "snort_scrape" {
+  targets    = local.file_match.snort3_log.targets
+  forward_to = [loki.process.snort_json_parser.receiver]
+}
+
+loki.process "snort_json_parser" {
+  stage.json {
+    expressions = {
+      action      = "action",      
+      protocol    = "proto",       
+      src_ip      = "src_addr",    
+      dest_ip     = "dst_addr",    
+      signature   = "msg",         
+      class       = "class",       
+    }
+  }
+
+  stage.labels {
+    values = {
+      action   = null,
+      protocol = null,
+      class    = null,
+    }
+  }
+
+  forward_to = [loki.write.local_loki.receiver]
+}
+
+loki.write "local_loki" {
+  endpoint {
+    url = "http://loki-server:3100/loki/api/v1/push" #loki-server是loki的IP
+  }
+}

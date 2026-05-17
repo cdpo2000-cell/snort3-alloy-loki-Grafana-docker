@@ -1,0 +1,28 @@
+services:
+  # Loki: 日誌資料庫
+  loki:
+    image: "grafana/loki:latest"
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: always
+
+  # Grafana: 可視化面板
+  grafana:
+    image: "grafana/grafana:latest"
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: always
+
+  # Alloy: 採集器 (確保這裡對齊 grafana)
+  alloy:
+    image: "grafana/alloy:latest"
+    volumes:
+      - "./config.alloy:/etc/alloy/config.alloy"
+      - "/var/log/snort:/var/log/snort:ro"
+    command: "run --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy"
+    ports:
+      - "12345:12345"
+    restart: "always"

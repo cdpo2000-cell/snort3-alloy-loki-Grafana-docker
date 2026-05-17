@@ -1,0 +1,58 @@
+//發現日誌
+local.file_match "snort_alerts" {
+    path_targets = [{
+        __address__ = "localhost",
+        __path__    = "/var/log/snort/alert_json.txt",
+        job         = "snort3",
+    }]
+}
+
+//讀取日誌 
+loki.source.file "snort_reader" {
+    targets    = local.file_match.snort_alerts.targets
+    forward_to = [loki.process.snort_pipeline.receiver]
+}
+
+//處理日誌 
+loki.process "snort_pipeline" {
+    //解析 JSON 欄位
+    stage.json {
+        expressions = {
+            timestamp = "timestamp",
+            action    = "action",
+            class     = "class",
+            msg       = "msg",
+            proto     = "proto",
+            src_addr  = "src_addr",
+            dst_addr  = "dst_addr",
+        }
+    }
+
+    //將重要欄位設為標籤
+    stage.labels {
+        values = {
+            action = null,
+            class  = null,
+            proto  = null,
+        }
+    }
+
+    //格式化內容 
+    stage.template {
+        source   = "output_msg"
+        template = "[{{.action}}] {{.proto}} {{.src_addr}} -> {{.dst_addr}} | {{.msg}}"
+    }
+
+    stage.output {
+        source = "output_msg"
+    }
+
+    forward_to = [loki.write.local_loki.receiver]
+}
+
+//發送至 Loki 
+loki.write "local_loki" {
+    endpoint {
+        url = "http://localhost:3100/loki/api/v1/push" #localhost是loki的IP
+    }
+}
